@@ -198,6 +198,16 @@ export const TaskSolverView: React.FC<TaskSolverViewProps> = ({
               {task.topicName}
             </span>
             <span aria-hidden="true">·</span>
+            <span
+              className={
+                task.level === 'rozszerzenie'
+                  ? 'font-semibold text-violet-700 dark:text-violet-400'
+                  : 'text-slate-600 dark:text-slate-300'
+              }
+            >
+              {task.level === 'rozszerzenie' ? 'Rozszerzenie' : 'Podstawa'}
+            </span>
+            <span aria-hidden="true">·</span>
             <span className="font-mono tabular-nums">{task.points} pkt</span>
             <span aria-hidden="true">·</span>
             <span>{task.type === 'closed' ? 'Zadanie zamknięte' : 'Zadanie otwarte'}</span>

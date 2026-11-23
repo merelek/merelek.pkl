@@ -1,9 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import { MATURA_TASKS, TOPICS } from './data/tasks';
-import type { ExamResult, MaturaTask, ProgressState, TopicId } from './types/matura';
+import type {
+  ExamResult,
+  LevelFilter,
+  MaturaTask,
+  ProgressState,
+  TopicId,
+} from './types/matura';
 import {
   calculateOverallStats,
   calculateTopicStats,
+  filterTasksByLevel,
   getWrongTaskIds,
   pickRandomTaskId,
   validateImportedProgress,
@@ -12,8 +19,10 @@ import {
   applyTheme,
   createEmptyProgress,
   exportProgressToJson,
+  loadLevelFilter,
   loadProgress,
   loadTheme,
+  saveLevelFilter,
   saveProgress,
   type ThemeMode,
 } from './utils/storage';
@@ -32,6 +41,7 @@ export default function App() {
   const validTaskIds = useMemo(() => new Set(MATURA_TASKS.map((t) => t.id)), []);
 
   const [theme, setTheme] = useState<ThemeMode>(() => loadTheme());
+  const [levelFilter, setLevelFilter] = useState<LevelFilter>(() => loadLevelFilter());
   const [progress, setProgress] = useState<ProgressState>(() => loadProgress(validTaskIds));
   const [activeView, setActiveView] = useState<ActiveView>('dashboard');
   const [practiceMode, setPracticeMode] = useState<PracticeMode>({ kind: 'all' });
@@ -45,48 +55,73 @@ export default function App() {
     saveProgress(progress);
   }, [progress]);
 
+  useEffect(() => {
+    saveLevelFilter(levelFilter);
+  }, [levelFilter]);
+
+  const levelCounts = useMemo(
+    () => ({
+      podstawa: MATURA_TASKS.filter((t) => t.level === 'podstawa').length,
+      rozszerzenie: MATURA_TASKS.filter((t) => t.level === 'rozszerzenie').length,
+      oba: MATURA_TASKS.length,
+    }),
+    []
+  );
+
+  const levelTasks = useMemo(
+    () => filterTasksByLevel(MATURA_TASKS, levelFilter),
+    [levelFilter]
+  );
+
   const overallStats = useMemo(
-    () => calculateOverallStats(MATURA_TASKS, progress.attempts),
-    [progress.attempts]
+    () => calculateOverallStats(MATURA_TASKS, progress.attempts, levelFilter),
+    [progress.attempts, levelFilter]
   );
 
   const topicStats = useMemo(
-    () => calculateTopicStats(TOPICS, MATURA_TASKS, progress.attempts),
-    [progress.attempts]
+    () => calculateTopicStats(TOPICS, MATURA_TASKS, progress.attempts, levelFilter),
+    [progress.attempts, levelFilter]
   );
 
   const wrongTaskIds = useMemo(
-    () => getWrongTaskIds(MATURA_TASKS, progress.attempts),
-    [progress.attempts]
+    () => getWrongTaskIds(levelTasks, progress.attempts),
+    [levelTasks, progress.attempts]
   );
 
   const practiceQueue: MaturaTask[] = useMemo(() => {
     if (practiceMode.kind === 'topic') {
-      return MATURA_TASKS.filter((t) => t.topicId === practiceMode.topicId);
+      return levelTasks.filter((t) => t.topicId === practiceMode.topicId);
     }
     if (practiceMode.kind === 'wrong') {
-      return MATURA_TASKS.filter((t) => wrongTaskIds.includes(t.id));
+      return levelTasks.filter((t) => wrongTaskIds.includes(t.id));
     }
-    return MATURA_TASKS;
-  }, [practiceMode, wrongTaskIds]);
+    return levelTasks;
+  }, [practiceMode, levelTasks, wrongTaskIds]);
 
   const practiceContextTitle = useMemo(() => {
+    const levelLabel =
+      levelFilter === 'podstawa'
+        ? 'Podstawa'
+        : levelFilter === 'rozszerzenie'
+          ? 'Rozszerzenie'
+          : 'Oba poziomy';
+
     if (practiceMode.kind === 'topic') {
       const topic = TOPICS.find((t) => t.id === practiceMode.topicId);
-      return `Dział: ${topic?.name ?? ''}`;
+      return `Dział: ${topic?.name ?? ''} (${levelLabel})`;
     }
     if (practiceMode.kind === 'wrong') {
-      return 'Powtórka błędnych zadań';
+      return `Powtórka błędnych (${levelLabel})`;
     }
-    return 'Wszystkie zadania';
-  }, [practiceMode]);
+    return `Wszystkie zadania (${levelLabel})`;
+  }, [practiceMode, levelFilter]);
 
   const handleToggleTheme = () => {
     setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
   };
 
   const handleStartRandom = () => {
-    const id = pickRandomTaskId(MATURA_TASKS, currentTaskId) ?? MATURA_TASKS[0].id;
+    const id = pickRandomTaskId(levelTasks, currentTaskId) ?? levelTasks[0]?.id ?? 1;
     setPracticeMode({ kind: 'all' });
     setCurrentTaskId(id);
     setActiveView('practice');
@@ -100,7 +135,7 @@ export default function App() {
   };
 
   const handleStartTopic = (topicId: TopicId) => {
-    const topicTasks = MATURA_TASKS.filter((t) => t.topicId === topicId);
+    const topicTasks = levelTasks.filter((t) => t.topicId === topicId);
     if (topicTasks.length === 0) return;
     const firstUnsolved = topicTasks.find((t) => !progress.attempts[t.id]);
     setPracticeMode({ kind: 'topic', topicId });
@@ -109,14 +144,16 @@ export default function App() {
   };
 
   const handleOpenTaskFromCatalog = (taskId: number, topicFilter: TopicId | 'all') => {
-    setPracticeMode(topicFilter === 'all' ? { kind: 'all' } : { kind: 'topic', topicId: topicFilter });
+    setPracticeMode(
+      topicFilter === 'all' ? { kind: 'all' } : { kind: 'topic', topicId: topicFilter }
+    );
     setCurrentTaskId(taskId);
     setActiveView('practice');
   };
 
   const handlePickRandomInQueue = () => {
     const queueIds = practiceQueue.map((t) => t.id);
-    const nextId = pickRandomTaskId(MATURA_TASKS, currentTaskId, queueIds);
+    const nextId = pickRandomTaskId(levelTasks, currentTaskId, queueIds);
     if (nextId !== null) {
       setCurrentTaskId(nextId);
     }
@@ -222,6 +259,9 @@ export default function App() {
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 sm:px-6 py-8">
         {activeView === 'dashboard' && (
           <DashboardView
+            levelFilter={levelFilter}
+            levelCounts={levelCounts}
+            onChangeLevelFilter={setLevelFilter}
             overallStats={overallStats}
             topicStats={topicStats}
             topics={TOPICS}
@@ -254,6 +294,9 @@ export default function App() {
             tasks={MATURA_TASKS}
             topics={TOPICS}
             attempts={progress.attempts}
+            levelFilter={levelFilter}
+            levelCounts={levelCounts}
+            onChangeLevelFilter={setLevelFilter}
             onOpenTask={handleOpenTaskFromCatalog}
           />
         )}
@@ -261,6 +304,7 @@ export default function App() {
         {activeView === 'exam' && (
           <ExamView
             allTasks={MATURA_TASKS}
+            levelFilter={levelFilter}
             onRecordExamResults={handleRecordExamResults}
             onBackToDashboard={() => setActiveView('dashboard')}
           />
@@ -269,7 +313,7 @@ export default function App() {
 
       <footer className="border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 py-5 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400">
-          <span>MaturaLab · Matematyka poziom podstawowy</span>
+          <span>MaturaLab · Matematyka podstawowa i rozszerzona</span>
           <span>Postęp zapisywany lokalnie w przeglądarce</span>
         </div>
       </footer>

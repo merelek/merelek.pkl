@@ -1,6 +1,7 @@
 import type {
   ExamQuestionResult,
   ExamResult,
+  LevelFilter,
   MaturaTask,
   OverallStats,
   ProgressMap,
@@ -20,7 +21,6 @@ export function normalizeOpenAnswer(raw: string): string {
   const cleaned = raw.trim().replace(/\s+/g, '').replace(/,/g, '.').replace(/^\+/, '');
   if (cleaned === '') return '';
 
-  // Canonicalize pure decimal/integer numbers (e.g. "03" -> "3", "3.0" -> "3", "1.750" -> "1.75")
   if (/^-?\d+(\.\d+)?$/.test(cleaned)) {
     const num = Number(cleaned);
     if (Number.isFinite(num)) {
@@ -48,19 +48,47 @@ export function checkTaskAnswer(task: MaturaTask, rawUserAnswer: string): boolea
   return validTargets.includes(normalizedUser);
 }
 
+export function filterTasksByLevel(
+  tasks: MaturaTask[],
+  levelFilter: LevelFilter
+): MaturaTask[] {
+  if (levelFilter === 'oba') return tasks;
+  return tasks.filter((t) => t.level === levelFilter);
+}
+
+export function formatPolishTasksCount(count: number, nounForm: 'zadanie' = 'zadanie'): string {
+  if (nounForm !== 'zadanie') return `${count}`;
+  if (count === 1) return '1 zadanie';
+  const mod10 = count % 10;
+  const mod100 = count % 100;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
+    return `${count} zadania`;
+  }
+  return `${count} zadań`;
+}
+
 export function calculateTopicStats(
   topics: TopicMeta[],
   tasks: MaturaTask[],
-  attempts: ProgressMap
+  attempts: ProgressMap,
+  levelFilter: LevelFilter = 'oba'
 ): TopicStats[] {
-  return topics.map((topic) => {
-    const topicTasks = tasks.filter((t) => t.topicId === topic.id);
-    const totalTasks = topicTasks.length;
+  const stats: TopicStats[] = [];
+
+  for (const topic of topics) {
+    const allTopicTasks = tasks.filter((t) => t.topicId === topic.id);
+    const basicTasks = allTopicTasks.filter((t) => t.level === 'podstawa').length;
+    const extensionTasks = allTopicTasks.filter((t) => t.level === 'rozszerzenie').length;
+    const visibleTasks = filterTasksByLevel(allTopicTasks, levelFilter);
+
+    // Hide topics with 0 tasks matching the selected level filter
+    if (visibleTasks.length === 0) continue;
+
     let solvedTasks = 0;
     let correctTasks = 0;
     let wrongTasks = 0;
 
-    for (const task of topicTasks) {
+    for (const task of visibleTasks) {
       const attempt = attempts[task.id];
       if (attempt) {
         solvedTasks += 1;
@@ -72,30 +100,38 @@ export function calculateTopicStats(
       }
     }
 
-    return {
+    stats.push({
       topicId: topic.id,
       topicName: topic.name,
-      totalTasks,
+      extensionOnly: Boolean(topic.extensionOnly) || (basicTasks === 0 && extensionTasks > 0),
+      totalTasks: visibleTasks.length,
+      basicTasks,
+      extensionTasks,
       solvedTasks,
       correctTasks,
       wrongTasks,
-      completionPercent: totalTasks > 0 ? Math.round((solvedTasks / totalTasks) * 100) : 0,
-    };
-  });
+      completionPercent:
+        visibleTasks.length > 0 ? Math.round((solvedTasks / visibleTasks.length) * 100) : 0,
+    });
+  }
+
+  return stats;
 }
 
 export function calculateOverallStats(
   tasks: MaturaTask[],
-  attempts: ProgressMap
+  attempts: ProgressMap,
+  levelFilter: LevelFilter = 'oba'
 ): OverallStats {
-  const totalTasks = tasks.length;
+  const filteredTasks = filterTasksByLevel(tasks, levelFilter);
+  const totalTasks = filteredTasks.length;
   let solvedTasks = 0;
   let correctTasks = 0;
   let wrongTasks = 0;
   let earnedPoints = 0;
   let totalPoints = 0;
 
-  for (const task of tasks) {
+  for (const task of filteredTasks) {
     totalPoints += task.points;
     const attempt = attempts[task.id];
     if (attempt) {

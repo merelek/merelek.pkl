@@ -11,12 +11,13 @@ import {
   RotateCcw,
   XCircle,
 } from 'lucide-react';
-import type { ExamResult, MaturaTask } from '../types/matura';
-import { createExamQuestions, formatTimer, scoreExam } from '../utils/evaluator';
+import type { ExamResult, LevelFilter, MaturaTask } from '../types/matura';
+import { createExamQuestions, filterTasksByLevel, formatTimer, scoreExam } from '../utils/evaluator';
 import { MathText } from './MathText';
 
 interface ExamViewProps {
   allTasks: MaturaTask[];
+  levelFilter: LevelFilter;
   onRecordExamResults: (result: ExamResult) => void;
   onBackToDashboard: () => void;
 }
@@ -26,6 +27,7 @@ const EXAM_DURATION_SECONDS = 30 * 60; // 30 minut
 
 export const ExamView: React.FC<ExamViewProps> = ({
   allTasks,
+  levelFilter,
   onRecordExamResults,
   onBackToDashboard,
 }) => {
@@ -38,8 +40,17 @@ export const ExamView: React.FC<ExamViewProps> = ({
   const [result, setResult] = useState<ExamResult | null>(null);
   const [expandedSolutions, setExpandedSolutions] = useState<Record<number, boolean>>({});
 
+  const levelPool = filterTasksByLevel(allTasks, levelFilter);
+  const effectiveQuestionCount = Math.min(EXAM_QUESTION_COUNT, levelPool.length);
+  const levelLabel =
+    levelFilter === 'podstawa'
+      ? 'Poziom podstawowy'
+      : levelFilter === 'rozszerzenie'
+        ? 'Poziom rozszerzony'
+        : 'Podstawa i rozszerzenie';
+
   const startNewExam = () => {
-    const picked = createExamQuestions(allTasks, EXAM_QUESTION_COUNT);
+    const picked = createExamQuestions(levelPool, EXAM_QUESTION_COUNT);
     setQuestions(picked);
     setCurrentIdx(0);
     setAnswers({});
@@ -85,13 +96,13 @@ export const ExamView: React.FC<ExamViewProps> = ({
       <div className="mx-auto max-w-2xl rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 sm:p-8 shadow-xs space-y-6">
         <div className="space-y-2">
           <p className="text-sm font-medium text-indigo-600 dark:text-indigo-400">
-            Symulacja maturalna
+            Symulacja maturalna · {levelLabel}
           </p>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
             Tryb mini-arkusza maturalnego
           </h1>
           <p className="text-sm sm:text-base text-slate-600 dark:text-slate-300 leading-relaxed">
-            Sprawdź swoją gotowość w warunkach zbliżonych do egzaminu. Wylosujesz zestaw 10 zadań z różnych działów, bez podpowiedzi w trakcie rozwiązywania.
+            Sprawdź swoją gotowość w warunkach zbliżonych do egzaminu. Wylosujesz zestaw {effectiveQuestionCount} zadań z wybranego poziomu ({levelLabel.toLowerCase()}), bez podpowiedzi w trakcie rozwiązywania.
           </p>
         </div>
 
@@ -99,7 +110,7 @@ export const ExamView: React.FC<ExamViewProps> = ({
           <div>
             <dt className="text-xs font-medium text-slate-500 dark:text-slate-400">Liczba zadań</dt>
             <dd className="mt-1 font-mono text-xl font-bold text-slate-900 dark:text-slate-100 tabular-nums">
-              {Math.min(EXAM_QUESTION_COUNT, allTasks.length)} zadań
+              {effectiveQuestionCount} zadań
             </dd>
           </div>
           <div>
@@ -228,6 +239,8 @@ export const ExamView: React.FC<ExamViewProps> = ({
                       </span>
                       <span aria-hidden="true">·</span>
                       <span>{item.task.topicName}</span>
+                      <span aria-hidden="true">·</span>
+                      <span>{item.task.level === 'rozszerzenie' ? 'Rozszerzenie' : 'Podstawa'}</span>
                       <span aria-hidden="true">·</span>
                       <span className="font-mono tabular-nums">
                         {item.earnedPoints}/{item.task.points} pkt
@@ -409,6 +422,16 @@ export const ExamView: React.FC<ExamViewProps> = ({
             <span aria-hidden="true">·</span>
             <span className="font-medium text-slate-900 dark:text-slate-100">
               {currentTask.topicName}
+            </span>
+            <span aria-hidden="true">·</span>
+            <span
+              className={
+                currentTask.level === 'rozszerzenie'
+                  ? 'font-semibold text-violet-700 dark:text-violet-400'
+                  : 'text-slate-600 dark:text-slate-300'
+              }
+            >
+              {currentTask.level === 'rozszerzenie' ? 'Rozszerzenie' : 'Podstawa'}
             </span>
             <span aria-hidden="true">·</span>
             <span className="font-mono tabular-nums">{currentTask.points} pkt</span>

@@ -1,11 +1,35 @@
 export type TaskType = 'closed' | 'open';
 
+export type MaturaLevel = 'podstawa' | 'rozszerzenie';
+
+export type LevelFilter = MaturaLevel | 'oba';
+
 export type TopicId =
-  | 'liczby-rzeczywiste'
-  | 'funkcje'
+  | 'planimetria'
+  | 'geometria-analityczna'
+  | 'rownania-i-nierownosci'
   | 'ciagi'
+  | 'stereometria'
   | 'trygonometria'
-  | 'planimetria';
+  | 'potegi-i-pierwiastki'
+  | 'prawdopodobienstwo'
+  | 'funkcja-kwadratowa'
+  | 'funkcje'
+  | 'logarytmy'
+  | 'wyrazenia-algebraiczne'
+  | 'liczby-rzeczywiste'
+  | 'funkcja-liniowa'
+  | 'procenty'
+  | 'statystyka'
+  | 'kombinatoryka'
+  | 'rachunek-rozniczkowy'
+  | 'rownania-z-parametrem'
+  | 'uklady-rownan'
+  | 'wartosc-bezwzgledna'
+  | 'wielomiany'
+  | 'funkcja-wykladnicza'
+  | 'optymalizacja'
+  | 'inne';
 
 export type OptionKey = 'A' | 'B' | 'C' | 'D';
 
@@ -18,6 +42,7 @@ export interface MaturaTask {
   id: number;
   topicId: TopicId;
   topicName: string;
+  level: MaturaLevel;
   type: TaskType;
   points: number;
   question: string;
@@ -32,6 +57,7 @@ export interface TopicMeta {
   id: TopicId;
   name: string;
   shortDescription: string;
+  extensionOnly?: boolean;
 }
 
 export interface TaskAttempt {
@@ -53,7 +79,10 @@ export interface ProgressState {
 export interface TopicStats {
   topicId: TopicId;
   topicName: string;
+  extensionOnly: boolean;
   totalTasks: number;
+  basicTasks: number;
+  extensionTasks: number;
   solvedTasks: number;
   correctTasks: number;
   wrongTasks: number;

@@ -1,12 +1,27 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowRight, CheckCircle2, Circle, XCircle } from 'lucide-react';
-import type { MaturaTask, ProgressMap, TopicId, TopicMeta } from '../types/matura';
+import type {
+  LevelFilter,
+  MaturaTask,
+  ProgressMap,
+  TopicId,
+  TopicMeta,
+} from '../types/matura';
+import { filterTasksByLevel } from '../utils/evaluator';
+import { LevelSegmentedControl } from './LevelSegmentedControl';
 import { MathText } from './MathText';
 
 interface CatalogViewProps {
   tasks: MaturaTask[];
   topics: TopicMeta[];
   attempts: ProgressMap;
+  levelFilter: LevelFilter;
+  levelCounts: {
+    podstawa: number;
+    rozszerzenie: number;
+    oba: number;
+  };
+  onChangeLevelFilter: (level: LevelFilter) => void;
   onOpenTask: (taskId: number, topicFilter: TopicId | 'all') => void;
 }
 
@@ -16,13 +31,35 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
   tasks,
   topics,
   attempts,
+  levelFilter,
+  levelCounts,
+  onChangeLevelFilter,
   onOpenTask,
 }) => {
   const [topicFilter, setTopicFilter] = useState<TopicId | 'all'>('all');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
 
+  const levelTasks = useMemo(
+    () => filterTasksByLevel(tasks, levelFilter),
+    [tasks, levelFilter]
+  );
+
+  const availableTopics = useMemo(() => {
+    const presentIds = new Set(levelTasks.map((t) => t.topicId));
+    return topics.filter((topic) => presentIds.has(topic.id));
+  }, [topics, levelTasks]);
+
+  useEffect(() => {
+    if (
+      topicFilter !== 'all' &&
+      !availableTopics.some((t) => t.id === topicFilter)
+    ) {
+      setTopicFilter('all');
+    }
+  }, [availableTopics, topicFilter]);
+
   const filteredTasks = useMemo(() => {
-    return tasks.filter((task) => {
+    return levelTasks.filter((task) => {
       if (topicFilter !== 'all' && task.topicId !== topicFilter) return false;
       const attempt = attempts[task.id];
       if (statusFilter === 'unsolved') return !attempt;
@@ -30,7 +67,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
       if (statusFilter === 'wrong') return Boolean(attempt && !attempt.isCorrect);
       return true;
     });
-  }, [tasks, attempts, topicFilter, statusFilter]);
+  }, [levelTasks, attempts, topicFilter, statusFilter]);
 
   const statusTabs: { id: StatusFilter; label: string }[] = [
     { id: 'all', label: 'Wszystkie' },
@@ -41,39 +78,48 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
             Baza zadań maturalnych
           </h1>
           <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-            Przeglądaj wszystkie {tasks.length} zadań z poziomu podstawowego i filtruj według działu lub statusu.
+            Przeglądaj wszystkie {levelTasks.length} zadań dla wybranego poziomu i filtruj według działu lub statusu.
           </p>
         </div>
-        <span className="text-sm font-medium text-slate-500 dark:text-slate-400 tabular-nums">
-          Wyświetlono: {filteredTasks.length} z {tasks.length}
-        </span>
+
+        <LevelSegmentedControl
+          value={levelFilter}
+          onChange={onChangeLevelFilter}
+          counts={levelCounts}
+        />
       </div>
 
       {/* Filters bar */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-xs">
-        <div className="flex flex-wrap items-center gap-2">
-          <label htmlFor="topic-select" className="text-sm font-semibold text-slate-700 dark:text-slate-200 mr-1">
-            Dział:
-          </label>
-          <select
-            id="topic-select"
-            value={topicFilter}
-            onChange={(e) => setTopicFilter(e.target.value as TopicId | 'all')}
-            className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-sm font-medium text-slate-800 dark:text-slate-100 focus:border-indigo-600 focus:outline-none"
-          >
-            <option value="all">Wszystkie działy</option>
-            {topics.map((topic) => (
-              <option key={topic.id} value={topic.id}>
-                {topic.name}
-              </option>
-            ))}
-          </select>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2">
+            <label htmlFor="topic-select" className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+              Dział:
+            </label>
+            <select
+              id="topic-select"
+              value={topicFilter}
+              onChange={(e) => setTopicFilter(e.target.value as TopicId | 'all')}
+              className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-sm font-medium text-slate-800 dark:text-slate-100 focus:border-indigo-600 focus:outline-none"
+            >
+              <option value="all">Wszystkie działy ({availableTopics.length})</option>
+              {availableTopics.map((topic) => (
+                <option key={topic.id} value={topic.id}>
+                  {topic.name}
+                  {topic.extensionOnly ? ' (Rozszerzenie)' : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+          <span className="text-xs font-medium text-slate-500 dark:text-slate-400 tabular-nums">
+            Wyświetlono: {filteredTasks.length} z {levelTasks.length}
+          </span>
         </div>
 
         <div
@@ -105,7 +151,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
             Brak zadań spełniających wybrane kryteria
           </p>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Zmień filtr działu lub statusu, aby zobaczyć zadania.
+            Zmień filtr poziomu, działu lub statusu, aby zobaczyć zadania.
           </p>
         </div>
       ) : (
@@ -127,6 +173,16 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                     <span aria-hidden="true">·</span>
                     <span className="font-medium text-slate-700 dark:text-slate-300">
                       {task.topicName}
+                    </span>
+                    <span aria-hidden="true">·</span>
+                    <span
+                      className={
+                        task.level === 'rozszerzenie'
+                          ? 'font-semibold text-violet-700 dark:text-violet-400'
+                          : 'text-slate-600 dark:text-slate-400'
+                      }
+                    >
+                      {task.level === 'rozszerzenie' ? 'Rozszerzenie' : 'Podstawa'}
                     </span>
                     <span aria-hidden="true">·</span>
                     <span className="font-mono tabular-nums">{task.points} pkt</span>

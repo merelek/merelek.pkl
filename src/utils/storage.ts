@@ -1,8 +1,9 @@
-import type { ProgressState } from '../types/matura';
+import type { LevelFilter, ProgressState } from '../types/matura';
 import { validateImportedProgress } from './evaluator';
 
 const PROGRESS_STORAGE_KEY = 'maturalab_progress_v1';
 const THEME_STORAGE_KEY = 'maturalab_theme';
+const LEVEL_STORAGE_KEY = 'maturalab_level_v1';
 
 export type ThemeMode = 'light' | 'dark';
 
@@ -54,6 +55,26 @@ export function applyTheme(mode: ThemeMode): void {
     document.documentElement.classList.add('dark');
   } else {
     document.documentElement.classList.remove('dark');
+  }
+}
+
+export function loadLevelFilter(): LevelFilter {
+  try {
+    const saved = localStorage.getItem(LEVEL_STORAGE_KEY);
+    if (saved === 'podstawa' || saved === 'rozszerzenie' || saved === 'oba') {
+      return saved;
+    }
+  } catch {
+    // Default to 'oba'
+  }
+  return 'oba';
+}
+
+export function saveLevelFilter(level: LevelFilter): void {
+  try {
+    localStorage.setItem(LEVEL_STORAGE_KEY, level);
+  } catch {
+    // Ignore storage errors
   }
 }
 

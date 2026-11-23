@@ -8,9 +8,24 @@ import {
   Trash2,
   Upload,
 } from 'lucide-react';
-import type { OverallStats, TopicId, TopicMeta, TopicStats } from '../types/matura';
+import type {
+  LevelFilter,
+  OverallStats,
+  TopicId,
+  TopicMeta,
+  TopicStats,
+} from '../types/matura';
+import { formatPolishTasksCount } from '../utils/evaluator';
+import { LevelSegmentedControl } from './LevelSegmentedControl';
 
 interface DashboardViewProps {
+  levelFilter: LevelFilter;
+  levelCounts: {
+    podstawa: number;
+    rozszerzenie: number;
+    oba: number;
+  };
+  onChangeLevelFilter: (level: LevelFilter) => void;
   overallStats: OverallStats;
   topicStats: TopicStats[];
   topics: TopicMeta[];
@@ -25,6 +40,9 @@ interface DashboardViewProps {
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
+  levelFilter,
+  levelCounts,
+  onChangeLevelFilter,
   overallStats,
   topicStats,
   topics,
@@ -64,14 +82,38 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     });
   };
 
+  const levelSubtitle =
+    levelFilter === 'podstawa'
+      ? 'Matematyka · Poziom podstawowy'
+      : levelFilter === 'rozszerzenie'
+        ? 'Matematyka · Poziom rozszerzony'
+        : 'Matematyka · Poziom podstawowy i rozszerzony';
+
   return (
     <div className="space-y-8">
+      {/* Level Filter Bar at Top of Dashboard */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="space-y-0.5">
+          <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+            Poziom matury
+          </span>
+          <p className="text-sm text-slate-700 dark:text-slate-300">
+            Dostosuj zadania, działy i statystyki do wybranego egzaminu
+          </p>
+        </div>
+        <LevelSegmentedControl
+          value={levelFilter}
+          onChange={onChangeLevelFilter}
+          counts={levelCounts}
+        />
+      </div>
+
       {/* Hero & Overall Progress Card */}
       <section className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 sm:p-8 shadow-xs">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
           <div className="space-y-2 max-w-2xl">
             <p className="text-sm font-medium text-indigo-600 dark:text-indigo-400">
-              Matematyka · Poziom podstawowy
+              {levelSubtitle}
             </p>
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
               Przygotuj się do matury krok po kroku
@@ -189,12 +231,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
       {/* Topics Grid */}
       <section aria-labelledby="topics-heading" className="space-y-4">
-        <div className="flex items-baseline justify-between gap-4">
+        <div className="flex flex-wrap items-baseline justify-between gap-4">
           <h2
             id="topics-heading"
             className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-50"
           >
-            Działy tematyczne
+            Działy tematyczne ({topicStats.length})
           </h2>
           <span className="text-sm text-slate-500 dark:text-slate-400">
             Wybierz dział, aby rozpocząć ćwiczenia
@@ -211,12 +253,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 onClick={() => onStartTopic(stat.topicId)}
                 className="group text-left rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-xs hover:border-indigo-300 dark:hover:border-indigo-700 hover:bg-slate-50/70 dark:hover:bg-slate-800/60 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 flex flex-col justify-between gap-5"
               >
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <h3 className="text-base font-bold text-slate-900 dark:text-slate-50 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
-                      {stat.topicName}
-                    </h3>
-                    <ArrowRight className="h-4 w-4 text-slate-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 group-hover:translate-x-0.5 transition-all shrink-0" />
+                <div className="space-y-2 w-full">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="space-y-0.5 min-w-0">
+                      <h3 className="text-base font-bold text-slate-900 dark:text-slate-50 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                        {stat.topicName}
+                      </h3>
+                      {stat.extensionOnly && (
+                        <p className="text-xs font-semibold text-violet-700 dark:text-violet-400">
+                          Rozszerzenie
+                        </p>
+                      )}
+                    </div>
+                    <ArrowRight className="h-4 w-4 mt-1 text-slate-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 group-hover:translate-x-0.5 transition-all shrink-0" />
                   </div>
                   {meta && (
                     <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
@@ -240,10 +289,21 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       style={{ width: `${stat.completionPercent}%` }}
                     />
                   </div>
-                  <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 tabular-nums">
-                    <span>Poprawne: {stat.correctTasks}</span>
-                    <span aria-hidden="true">·</span>
-                    <span>Błędne: {stat.wrongTasks}</span>
+                  <div className="space-y-1 text-xs text-slate-500 dark:text-slate-400 tabular-nums">
+                    {levelFilter === 'oba' && (
+                      <p className="text-slate-600 dark:text-slate-300">
+                        {stat.basicTasks > 0 && stat.extensionTasks > 0
+                          ? `Podstawa: ${stat.basicTasks} · +${formatPolishTasksCount(stat.extensionTasks)} z rozszerzenia`
+                          : stat.extensionOnly
+                            ? `Tylko Rozszerzenie · ${formatPolishTasksCount(stat.extensionTasks)}`
+                            : `Podstawa · ${formatPolishTasksCount(stat.basicTasks)}`}
+                      </p>
+                    )}
+                    <div className="flex items-center gap-2">
+                      <span>Poprawne: {stat.correctTasks}</span>
+                      <span aria-hidden="true">·</span>
+                      <span>Błędne: {stat.wrongTasks}</span>
+                    </div>
                   </div>
                 </div>
               </button>
