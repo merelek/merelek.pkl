@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
+import { CKE_SHEETS } from './data/ckeSheets';
 import { MATURA_TASKS, TOPICS } from './data/tasks';
 import type {
   ExamResult,
   LevelFilter,
+  MaturaLevel,
   MaturaTask,
   ProgressState,
   TopicId,
@@ -13,6 +15,7 @@ import {
   filterTasksByLevel,
   getWrongTaskIds,
   pickRandomTaskId,
+  sortTasksBySheetOrder,
   validateImportedProgress,
 } from './utils/evaluator';
 import {
@@ -30,18 +33,23 @@ import { TopBar, type ActiveView } from './components/TopBar';
 import { DashboardView } from './components/DashboardView';
 import { TaskSolverView } from './components/TaskSolverView';
 import { CatalogView } from './components/CatalogView';
+import { CkeSheetsView } from './components/CkeSheetsView';
 import { ExamView } from './components/ExamView';
 
 type PracticeMode =
   | { kind: 'all' }
   | { kind: 'topic'; topicId: TopicId }
-  | { kind: 'wrong' };
+  | { kind: 'wrong' }
+  | { kind: 'sheet'; sheetId: string };
 
 export default function App() {
   const validTaskIds = useMemo(() => new Set(MATURA_TASKS.map((t) => t.id)), []);
 
   const [theme, setTheme] = useState<ThemeMode>(() => loadTheme());
   const [levelFilter, setLevelFilter] = useState<LevelFilter>(() => loadLevelFilter());
+  const [sheetLevel, setSheetLevel] = useState<MaturaLevel>(() =>
+    loadLevelFilter() === 'rozszerzenie' ? 'rozszerzenie' : 'podstawa'
+  );
   const [progress, setProgress] = useState<ProgressState>(() => loadProgress(validTaskIds));
   const [activeView, setActiveView] = useState<ActiveView>('dashboard');
   const [practiceMode, setPracticeMode] = useState<PracticeMode>({ kind: 'all' });
@@ -89,6 +97,11 @@ export default function App() {
   );
 
   const practiceQueue: MaturaTask[] = useMemo(() => {
+    if (practiceMode.kind === 'sheet') {
+      return sortTasksBySheetOrder(
+        MATURA_TASKS.filter((t) => t.sheetId === practiceMode.sheetId)
+      );
+    }
     if (practiceMode.kind === 'topic') {
       return levelTasks.filter((t) => t.topicId === practiceMode.topicId);
     }
@@ -99,6 +112,11 @@ export default function App() {
   }, [practiceMode, levelTasks, wrongTaskIds]);
 
   const practiceContextTitle = useMemo(() => {
+    if (practiceMode.kind === 'sheet') {
+      const sheet = CKE_SHEETS.find((s) => s.id === practiceMode.sheetId);
+      return `Arkusz: ${sheet?.title ?? practiceMode.sheetId}`;
+    }
+
     const levelLabel =
       levelFilter === 'podstawa'
         ? 'Podstawa'
@@ -151,9 +169,21 @@ export default function App() {
     setActiveView('practice');
   };
 
+  const handleStartSheet = (sheetId: string) => {
+    const sheetTasks = sortTasksBySheetOrder(
+      MATURA_TASKS.filter((t) => t.sheetId === sheetId)
+    );
+    if (sheetTasks.length === 0) return;
+    const firstUnsolved = sheetTasks.find((t) => !progress.attempts[t.id]);
+    setPracticeMode({ kind: 'sheet', sheetId });
+    setCurrentTaskId((firstUnsolved ?? sheetTasks[0]).id);
+    setActiveView('practice');
+  };
+
   const handlePickRandomInQueue = () => {
     const queueIds = practiceQueue.map((t) => t.id);
-    const nextId = pickRandomTaskId(levelTasks, currentTaskId, queueIds);
+    const pool = practiceMode.kind === 'sheet' ? practiceQueue : levelTasks;
+    const nextId = pickRandomTaskId(pool, currentTaskId, queueIds);
     if (nextId !== null) {
       setCurrentTaskId(nextId);
     }
@@ -251,6 +281,7 @@ export default function App() {
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       <TopBar
         activeView={activeView}
+        practiceFromSheets={practiceMode.kind === 'sheet'}
         onNavigate={setActiveView}
         theme={theme}
         onToggleTheme={handleToggleTheme}
@@ -281,11 +312,14 @@ export default function App() {
             tasksQueue={practiceQueue}
             currentTaskId={currentTaskId}
             contextTitle={practiceContextTitle}
+            backLabel={practiceMode.kind === 'sheet' ? 'Arkusze CKE' : 'Pulpit'}
             attempts={progress.attempts}
             onSelectTask={setCurrentTaskId}
             onSubmitAnswer={handleSubmitTaskAnswer}
             onPickRandom={handlePickRandomInQueue}
-            onBackToDashboard={() => setActiveView('dashboard')}
+            onBackToDashboard={() =>
+              setActiveView(practiceMode.kind === 'sheet' ? 'sheets' : 'dashboard')
+            }
           />
         )}
 
@@ -298,6 +332,17 @@ export default function App() {
             levelCounts={levelCounts}
             onChangeLevelFilter={setLevelFilter}
             onOpenTask={handleOpenTaskFromCatalog}
+          />
+        )}
+
+        {activeView === 'sheets' && (
+          <CkeSheetsView
+            sheets={CKE_SHEETS}
+            tasks={MATURA_TASKS}
+            attempts={progress.attempts}
+            selectedLevel={sheetLevel}
+            onChangeLevel={setSheetLevel}
+            onStartSheet={handleStartSheet}
           />
         )}
 

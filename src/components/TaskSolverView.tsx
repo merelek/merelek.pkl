@@ -19,6 +19,7 @@ interface TaskSolverViewProps {
   tasksQueue: MaturaTask[];
   currentTaskId: number;
   contextTitle: string;
+  backLabel?: string;
   attempts: Record<number, TaskAttempt>;
   onSelectTask: (taskId: number) => void;
   onSubmitAnswer: (task: MaturaTask, userAnswer: string, isCorrect: boolean) => void;
@@ -30,6 +31,7 @@ export const TaskSolverView: React.FC<TaskSolverViewProps> = ({
   tasksQueue,
   currentTaskId,
   contextTitle,
+  backLabel = 'Pulpit',
   attempts,
   onSelectTask,
   onSubmitAnswer,
@@ -143,7 +145,7 @@ export const TaskSolverView: React.FC<TaskSolverViewProps> = ({
             className="inline-flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3.5 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors whitespace-nowrap shrink-0"
           >
             <ArrowLeft className="h-4 w-4" />
-            Pulpit
+            {backLabel}
           </button>
           <span className="text-sm font-medium text-slate-600 dark:text-slate-300">
             {contextTitle}
@@ -213,27 +215,33 @@ export const TaskSolverView: React.FC<TaskSolverViewProps> = ({
             <span>{task.type === 'closed' ? 'Zadanie zamknięte' : 'Zadanie otwarte'}</span>
           </div>
 
-          {savedAttempt && (
-            <span
-              className={`inline-flex items-center gap-1.5 text-xs font-semibold ${
-                savedAttempt.isCorrect
-                  ? 'text-emerald-700 dark:text-emerald-400'
-                  : 'text-rose-700 dark:text-rose-400'
-              }`}
-            >
-              {savedAttempt.isCorrect ? (
-                <>
-                  <CheckCircle2 className="h-4 w-4" />
-                  Rozwiązane poprawnie
-                </>
-              ) : (
-                <>
-                  <XCircle className="h-4 w-4" />
-                  Wymaga poprawy
-                </>
-              )}
+          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+            <span className="inline-flex items-center rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-2.5 py-1 text-xs font-medium text-slate-700 dark:text-slate-300">
+              {task.source}
             </span>
-          )}
+
+            {savedAttempt && (
+              <span
+                className={`inline-flex items-center gap-1.5 text-xs font-semibold ${
+                  savedAttempt.isCorrect
+                    ? 'text-emerald-700 dark:text-emerald-400'
+                    : 'text-rose-700 dark:text-rose-400'
+                }`}
+              >
+                {savedAttempt.isCorrect ? (
+                  <>
+                    <CheckCircle2 className="h-4 w-4" />
+                    Rozwiązane poprawnie
+                  </>
+                ) : (
+                  <>
+                    <XCircle className="h-4 w-4" />
+                    Wymaga poprawy
+                  </>
+                )}
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Problem Statement */}

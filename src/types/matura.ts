@@ -4,6 +4,10 @@ export type MaturaLevel = 'podstawa' | 'rozszerzenie';
 
 export type LevelFilter = MaturaLevel | 'oba';
 
+export type CkeSession = 'maj' | 'czerwiec' | 'sierpien' | 'probna';
+
+export type CkeYear = 2023 | 2024 | 2025 | 2026;
+
 export type TopicId =
   | 'planimetria'
   | 'geometria-analityczna'
@@ -43,6 +47,10 @@ export interface MaturaTask {
   topicId: TopicId;
   topicName: string;
   level: MaturaLevel;
+  source: string;
+  sheetId: string;
+  year: CkeYear;
+  session: CkeSession;
   type: TaskType;
   points: number;
   question: string;
@@ -51,6 +59,26 @@ export interface MaturaTask {
   acceptedAnswers?: string[];
   hint: string;
   solutionSteps: string[];
+}
+
+export interface CkeSheet {
+  id: string;
+  title: string;
+  dateLabel: string;
+  year: CkeYear;
+  session: CkeSession;
+  level: MaturaLevel;
+  formula: 'Formuła 2023';
+  examPdfUrl: string;
+  keyPdfUrl: string;
+}
+
+export interface CkeSheetStats {
+  sheet: CkeSheet;
+  totalTasks: number;
+  solvedTasks: number;
+  correctTasks: number;
+  completionPercent: number;
 }
 
 export interface TopicMeta {

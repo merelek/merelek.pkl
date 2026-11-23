@@ -1,11 +1,17 @@
 import type {
+  CkeSession,
+  CkeSheet,
+  CkeSheetStats,
+  CkeYear,
   ExamQuestionResult,
   ExamResult,
   LevelFilter,
+  MaturaLevel,
   MaturaTask,
   OverallStats,
   ProgressMap,
   ProgressState,
+  TopicId,
   TopicMeta,
   TopicStats,
 } from '../types/matura';
@@ -54,6 +60,94 @@ export function filterTasksByLevel(
 ): MaturaTask[] {
   if (levelFilter === 'oba') return tasks;
   return tasks.filter((t) => t.level === levelFilter);
+}
+
+export function extractTaskNumberFromSource(source: string): number {
+  const match = source.match(/Zad\.\s*(\d+)/i);
+  return match ? Number(match[1]) : Number.MAX_SAFE_INTEGER;
+}
+
+export function sortTasksBySheetOrder(tasks: MaturaTask[]): MaturaTask[] {
+  return [...tasks].sort((a, b) => {
+    const numA = extractTaskNumberFromSource(a.source);
+    const numB = extractTaskNumberFromSource(b.source);
+    if (numA !== numB) return numA - numB;
+    return a.id - b.id;
+  });
+}
+
+export interface CatalogFilterOptions {
+  levelFilter: LevelFilter;
+  topicFilter: TopicId | 'all';
+  statusFilter: 'all' | 'unsolved' | 'correct' | 'wrong';
+  yearFilter: CkeYear | 'all';
+  sessionFilter?: CkeSession | 'all';
+  searchQuery: string;
+}
+
+export function filterCatalogTasks(
+  tasks: MaturaTask[],
+  attempts: ProgressMap,
+  options: CatalogFilterOptions
+): MaturaTask[] {
+  const query = options.searchQuery.trim().toLowerCase();
+  return filterTasksByLevel(tasks, options.levelFilter).filter((task) => {
+    if (options.topicFilter !== 'all' && task.topicId !== options.topicFilter) {
+      return false;
+    }
+    if (options.yearFilter !== 'all' && task.year !== options.yearFilter) {
+      return false;
+    }
+    if (
+      options.sessionFilter &&
+      options.sessionFilter !== 'all' &&
+      task.session !== options.sessionFilter
+    ) {
+      return false;
+    }
+
+    const attempt = attempts[task.id];
+    if (options.statusFilter === 'unsolved' && attempt) return false;
+    if (options.statusFilter === 'correct' && !(attempt && attempt.isCorrect)) return false;
+    if (options.statusFilter === 'wrong' && !(attempt && !attempt.isCorrect)) return false;
+
+    if (query) {
+      const haystack = `${task.question} ${task.topicName} ${task.source} zadanie #${task.id}`.toLowerCase();
+      if (!haystack.includes(query)) return false;
+    }
+
+    return true;
+  });
+}
+
+export function calculateCkeSheetStats(
+  sheets: CkeSheet[],
+  tasks: MaturaTask[],
+  attempts: ProgressMap,
+  level: MaturaLevel
+): CkeSheetStats[] {
+  return sheets
+    .filter((sheet) => sheet.level === level)
+    .map((sheet) => {
+      const sheetTasks = tasks.filter((t) => t.sheetId === sheet.id);
+      let solvedTasks = 0;
+      let correctTasks = 0;
+      for (const task of sheetTasks) {
+        const attempt = attempts[task.id];
+        if (attempt) {
+          solvedTasks += 1;
+          if (attempt.isCorrect) correctTasks += 1;
+        }
+      }
+      const totalTasks = sheetTasks.length;
+      return {
+        sheet,
+        totalTasks,
+        solvedTasks,
+        correctTasks,
+        completionPercent: totalTasks > 0 ? Math.round((solvedTasks / totalTasks) * 100) : 0,
+      };
+    });
 }
 
 export function formatPolishTasksCount(count: number, nounForm: 'zadanie' = 'zadanie'): string {
