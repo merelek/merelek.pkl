@@ -1,0 +1,6 @@
+{
+  "name": "MaturaLab — Matematyka Maturalna",
+  "description": "Interaktywna platforma do nauki i rozwiązywania zadań maturalnych z matematyki na poziomie podstawowym z obsługą LaTeX, trybem arkusza i zapisem postępów w przeglądarce.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
